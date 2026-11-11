@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D 인공위성 궤도 모형</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: rgba(10,16,30,0.82); --line: rgba(140,170,220,0.18); --tx: #e6edf7; --mut: #8ea0bb; --acc: #ffd166; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #02040a; color: var(--tx); font-family: 'Noto Sans KR', system-ui, sans-serif; overflow: hidden; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .label { position: absolute; left: 0; top: 0; font-size: 11px; white-space: nowrap; text-shadow: 0 0 4px #000, 0 0 2px #000; display: none; opacity: .9; }
+  .label.sel { font-weight: 700; font-size: 13px; opacity: 1; }
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); }
+  #panel { position: fixed; top: 12px; left: 12px; width: 300px; max-height: calc(100% - 24px); display: flex; flex-direction: column; padding: 14px; gap: 10px; }
+  #panel.collapsed > :not(header) { display: none; }
+  #panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h1 { font-size: 16px; margin: 0; font-weight: 700; }
+  h1 small { display: block; font-size: 11px; color: var(--mut); font-weight: 400; margin-top: 2px; }
+  h2 { font-size: 11px; letter-spacing: .08em; color: var(--mut); margin: 4px 0 2px; font-weight: 500; }
+  button { font: inherit; color: var(--tx); background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; cursor: pointer; font-size: 12px; }
+  button:hover { background: rgba(255,255,255,0.12); }
+  button.on { background: var(--acc); color: #1a1a1a; border-color: var(--acc); font-weight: 700; }
+  .layer { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+  .layer .cnt { margin-left: auto; color: var(--mut); font-size: 11px; font-family: 'JetBrains Mono', monospace; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; font-size: 12px; }
+  .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #search { width: 100%; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0,0,0,0.3); color: var(--tx); font: inherit; font-size: 13px; }
+  #satlist { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 80px; flex: 1; font-size: 13px; }
+  #satlist li { padding: 5px 6px; border-radius: 6px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  #satlist li:hover { background: rgba(255,255,255,0.07); }
+  #satlist li.on { background: rgba(255,209,102,0.18); }
+  .views { display: flex; flex-wrap: wrap; gap: 5px; }
+  #timebar { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); padding: 10px 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 24px); }
+  #clock { font-family: 'JetBrains Mono', monospace; font-size: 15px; font-weight: 600; }
+  #clock-utc, #offset { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--mut); }
+  .speed { display: flex; gap: 4px; }
+  #info { position: fixed; top: 12px; right: 12px; width: 290px; padding: 14px; }
+  #info.hidden, .hidden { display: none !important; }
+  #info .top { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
+  #i-name { font-size: 16px; font-weight: 700; margin: 0; }
+  #i-note { font-size: 12.5px; color: #c5d1e3; line-height: 1.55; margin: 6px 0 10px; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; margin: 0; font-size: 13px; }
+  dt { color: var(--mut); }
+  dd { margin: 0; font-family: 'JetBrains Mono', monospace; text-align: right; }
+  #i-formula { margin-top: 10px; padding: 8px; border-radius: 8px; background: rgba(255,209,102,0.08); border: 1px dashed rgba(255,209,102,0.35); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--acc); }
+  #i-src { font-size: 11px; color: var(--mut); margin-top: 8px; }
+  .notice { font-size: 11px; color: var(--mut); line-height: 1.5; }
+  .notice b { color: #c5d1e3; }
+  #tle-dlg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  #tle-dlg .card { width: min(620px, calc(100% - 24px)); padding: 18px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100% - 24px); overflow: auto; }
+  #tle-text { width: 100%; height: 200px; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(0,0,0,0.4); color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  #tle-dlg ol { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: #c5d1e3; }
+  #tle-dlg a { color: #7bdff2; }
+  code { font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #tle-msg { font-size: 12px; color: var(--acc); }
+  footer.credit { position: fixed; right: 12px; bottom: 12px; font-size: 10px; color: rgba(142,160,187,0.6); letter-spacing: .05em; }
+  @media (max-width: 760px) {
+    #panel { width: calc(100% - 24px); max-height: 46%; }
+    #info { top: auto; bottom: 86px; right: 12px; left: 12px; width: auto; }
+    footer.credit { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+
+<aside id="panel" class="card">
+  <header>
+    <h1>3D 인공위성 궤도 모형<small>지구와 실제 궤도 위의 위성들</small></h1>
+    <button id="panel-toggle" title="패널 접기">☰</button>
+  </header>
+  <div>
+    <h2>위성 그룹</h2>
+    <div id="layers"></div>
+  </div>
+  <div>
+    <h2>표시</h2>
+    <div class="toggles">
+      <label><input type="checkbox" id="t-orbits" checked>궤도선</label>
+      <label><input type="checkbox" id="t-labels" checked>이름표</label>
+      <label><input type="checkbox" id="t-shells">LEO/MEO/GEO 영역</label>
+      <label><input type="checkbox" id="t-follow">선택 위성 따라가기</label>
+    </div>
+  </div>
+  <div>
+    <h2>시점</h2>
+    <div class="views">
+      <button data-view="korea">한반도 위</button>
+      <button data-view="leo">저궤도 근접</button>
+      <button data-view="geo">정지궤도 전체</button>
+      <button data-view="north">북극 위에서</button>
+    </div>
+  </div>
+  <input id="search" placeholder="위성 이름 검색 (예: 아리랑, ISS)">
+  <ul id="satlist"></ul>
+  <button id="tle-open">📡 실시간 TLE 불러오기 (실제 위치)</button>
+  <p class="notice"><b>기본 위성</b>은 공개된 고도·경사각을 바탕으로 한 <b>근사 궤도</b>입니다(궤도 모양은 실제, 궤도 위 위치는 예시). 실제 현재 위치는 TLE를 붙여넣으면 SGP4로 계산합니다.</p>
+</aside>
+
+<section id="info" class="card hidden">
+  <div class="top"><h3 id="i-name"></h3><button id="i-close">✕</button></div>
+  <p id="i-note"></p>
+  <dl>
+    <dt>궤도 종류</dt><dd id="i-class"></dd>
+    <dt>고도</dt><dd id="i-alt"></dd>
+    <dt>속도</dt><dd id="i-speed"></dd>
+    <dt></dt><dd id="i-kmh" style="color:var(--mut)"></dd>
+    <dt>공전 주기</dt><dd id="i-period"></dd>
+    <dt>하루 공전</dt><dd id="i-revs"></dd>
+    <dt>궤도 경사각</dt><dd id="i-inc"></dd>
+    <dt>바로 아래 지점</dt><dd id="i-pos"></dd>
+  </dl>
+  <div id="i-formula"></div>
+  <div id="i-src"></div>
+</section>
+
+<div id="timebar" class="card">
+  <div>
+    <div id="clock"></div>
+    <div><span id="clock-utc"></span> · <span id="offset"></span></div>
+  </div>
+  <button id="play">⏸</button>
+  <div class="speed">
+    <button data-v="1">1×</button>
+    <button data-v="60">60×</button>
+    <button data-v="600">600×</button>
+    <button data-v="3600">3600×</button>
+  </div>
+  <button id="now">지금으로</button>
+</div>
+
+<div id="tle-dlg" class="hidden">
+  <div class="card">
+    <h1>실시간 TLE 불러오기</h1>
+    <ol>
+      <li>아래 CelesTrak 링크를 새 창에서 열면 텍스트가 나옵니다. 전체 선택(Ctrl+A) → 복사(Ctrl+C).
+        <div class="row" style="margin-top:4px">
+          <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=stations&FORMAT=tle" target="_blank" rel="noopener">우주정거장</a>
+          <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=tle" target="_blank" rel="noopener">밝은 위성 100기</a>
+          <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=gps-ops&FORMAT=tle" target="_blank" rel="noopener">GPS</a>
+          <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=weather&FORMAT=tle" target="_blank" rel="noopener">기상위성</a>
+          <a href="https://celestrak.org/NORAD/elements/gp.php?GROUP=geo&FORMAT=tle" target="_blank" rel="noopener">정지궤도</a>
+          <a href="https://celestrak.org/NORAD/elements/gp.php?NAME=KOMPSAT&FORMAT=tle" target="_blank" rel="noopener">아리랑(KOMPSAT)</a>
+        </div>
+      </li>
+      <li>아래 칸에 붙여넣고 <b>추가</b>를 누르세요. (.txt 파일을 선택해도 됩니다)</li>
+      <li>스타링크 전체(<code>GROUP=starlink</code>)처럼 큰 목록은 3,000기까지만 불러옵니다.</li>
+    </ol>
+    <textarea id="tle-text" placeholder="ISS (ZARYA)&#10;1 25544U 98067A   ...&#10;2 25544  51.6400 ..."></textarea>
+    <div class="row">
+      <input type="file" id="tle-file" accept=".txt,.tle,text/plain">
+    </div>
+    <div class="row">
+      <button id="tle-add" class="on">추가</button>
+      <button id="tle-clear">사용자 TLE 모두 지우기</button>
+      <button id="tle-cancel">닫기</button>
+      <span id="tle-msg"></span>
+    </div>
+    <p class="notice">TLE는 특정 시각(기준일) 기준의 궤도요소입니다. 기준일에서 며칠~몇 주 안에는 수 km 이내로 맞지만, 오래될수록 오차가 커지니 수업 직전에 새로 복사하세요. 붙여넣은 데이터는 이 브라우저에만 저장됩니다.</p>
+  </div>
+</div>
+
+<footer class="credit">PUMPKIN IDEA FACTORY MAKERSPACE · 인공위성 강의 교구</footer>
+
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

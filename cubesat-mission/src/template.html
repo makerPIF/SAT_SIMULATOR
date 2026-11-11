@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1U 큐브위성 3D 미션 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: rgba(10,16,30,0.84); --line: rgba(140,170,220,0.18); --tx: #e6edf7; --mut: #8ea0bb; --acc: #ffd166; --good: #6dffa8; --bad: #ff9f9f; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #02040a; color: var(--tx); font-family: 'Noto Sans KR', system-ui, sans-serif; overflow: hidden; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); }
+  #left { position: fixed; top: 12px; left: 12px; width: 312px; max-height: calc(100% - 24px); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  #left.collapsed > :not(header) { display: none; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  h1 { font-size: 16px; margin: 0; }
+  h1 small { display: block; font-size: 11px; color: var(--mut); font-weight: 400; margin-top: 2px; }
+  h2 { font-size: 11px; letter-spacing: .08em; color: var(--mut); margin: 2px 0 4px; font-weight: 500; }
+  button { font: inherit; font-size: 12px; color: var(--tx); background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 8px; padding: 5px 9px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.13); }
+  button.on { background: var(--acc); color: #1a1a1a; border-color: var(--acc); font-weight: 700; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .grid2 button { text-align: left; }
+  #phases { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  #phases li { font-size: 12px; padding: 5px 8px; border-radius: 7px; border-left: 3px solid #33415f; color: var(--mut); display: flex; flex-direction: column; }
+  #phases li span { font-size: 11px; opacity: .85; }
+  #phases li.done { border-left-color: var(--good); color: #c5d1e3; }
+  #phases li.now { border-left-color: var(--acc); background: rgba(255,209,102,0.1); color: var(--tx); }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; font-size: 12px; }
+  .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .partbtns { display: flex; flex-wrap: wrap; gap: 4px; }
+  .partbtns button { font-size: 11px; padding: 4px 7px; }
+  #manual-box { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+  #manual-box label { display: grid; grid-template-columns: 40px 1fr 44px; align-items: center; gap: 6px; }
+  .hidden { display: none !important; }
+  #right { position: fixed; top: 12px; right: 12px; width: 300px; padding: 14px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 340px); overflow-y: auto; }
+  #clock { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--mut); }
+  #met { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 600; color: var(--acc); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 12.5px; }
+  dt { color: var(--mut); }
+  dd { margin: 0; font-family: 'JetBrains Mono', monospace; text-align: right; font-size: 12px; }
+  .good { color: var(--good); } .bad { color: var(--bad); }
+  .bar { height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+  #bar-soc { height: 100%; width: 70%; background: var(--good); }
+  #chart { width: 100%; height: 120px; display: block; }
+  .legend { display: flex; gap: 10px; font-size: 11px; color: var(--mut); }
+  .legend i { display: inline-block; width: 10px; height: 3px; margin-right: 4px; vertical-align: middle; }
+  #minilabel { position: fixed; right: 20px; bottom: 322px; font-size: 11px; color: var(--mut); text-align: right; }
+  @media (max-width: 900px) { #minilabel { display: none; } }
+  #bottom { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); padding: 8px 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 360px); }
+  #log { position: fixed; left: 340px; bottom: 70px; width: 420px; max-height: 150px; overflow-y: auto; padding: 10px 12px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.6; color: #c5d1e3; }
+  #partcard { position: fixed; left: 340px; top: 12px; width: 340px; padding: 14px; }
+  #partcard .top { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+  #p-name { margin: 0; font-size: 16px; }
+  #p-sys { font-size: 11px; color: var(--acc); font-family: 'JetBrains Mono', monospace; }
+  #p-desc { font-size: 13px; line-height: 1.6; color: #c5d1e3; margin: 8px 0 0; }
+  .credit { position: fixed; left: 340px; bottom: 16px; font-size: 10px; color: rgba(142,160,187,0.55); letter-spacing: .05em; }
+  .note { font-size: 10.5px; color: var(--mut); line-height: 1.5; }
+  @media (max-width: 1100px) { #log, .credit { display: none; } #partcard { left: auto; right: 12px; top: auto; bottom: 330px; } }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<aside id="left" class="card">
+  <header>
+    <h1>1U 큐브위성 3D 미션 시뮬레이터<small>구조 · 자세제어 · 전력 · 지상국 교신</small></h1>
+    <button id="panel-toggle" title="패널 접기">☰</button>
+  </header>
+  <div>
+    <h2>미션 단계</h2>
+    <ol id="phases"></ol>
+  </div>
+  <div>
+    <h2>자세 모드 명령</h2>
+    <label style="display:flex;gap:6px;font-size:12px;margin-bottom:6px;align-items:center"><input type="checkbox" id="auto" checked>자동 미션 (비행 소프트웨어가 스스로 판단)</label>
+    <div class="grid2">
+      <button data-mode="off">제어 끄기</button>
+      <button data-mode="detumble">디텀블링</button>
+      <button data-mode="sun">태양 지향</button>
+      <button data-mode="nadir">지구 지향 촬영</button>
+      <button data-mode="manual">수동 자세</button>
+      <button id="tumble">외란 주기</button>
+    </div>
+    <div id="manual-box" class="hidden" style="margin-top:8px">
+      <label>롤 <input type="range" id="m-roll" min="-180" max="180" value="0"><span id="v-roll">0°</span></label>
+      <label>피치 <input type="range" id="m-pitch" min="-90" max="90" value="0"><span id="v-pitch">0°</span></label>
+      <label>요 <input type="range" id="m-yaw" min="-180" max="180" value="0"><span id="v-yaw">0°</span></label>
+    </div>
+  </div>
+  <div>
+    <h2>보기</h2>
+    <div class="toggles">
+      <label><input type="checkbox" id="t-explode">분해 보기</label>
+      <label><input type="checkbox" id="t-xray">외판 투명</label>
+      <label><input type="checkbox" id="t-axes" checked>몸체 축 XYZ</label>
+      <label><input type="checkbox" id="t-vectors" checked>방향 벡터</label>
+      <label><input type="checkbox" id="t-fov" checked>촬영 시야</label>
+    </div>
+    <p class="note">벡터: <span style="color:#ffd166">■ 태양</span> <span style="color:#4aa3ff">■ 지구(천저)</span> <span style="color:#6bdc8b">■ 진행</span> <span style="color:#ff9f43">■ 지상국</span></p>
+  </div>
+  <div>
+    <h2>부품 살펴보기 (클릭해도 됨)</h2>
+    <div class="partbtns">
+      <button data-part="frame">프레임</button><button data-part="solar">태양전지</button><button data-part="antenna">안테나</button>
+      <button data-part="camera">카메라</button><button data-part="sunsensor">태양센서</button><button data-part="payloadboard">탑재체보드</button>
+      <button data-part="eps">EPS</button><button data-part="battery">배터리</button><button data-part="obc">OBC</button>
+      <button data-part="comm">통신</button><button data-part="adcs">ADCS</button><button data-part="rw">리액션휠</button>
+      <button data-part="mtq">자기토커</button><button data-part="kill">분리스위치</button>
+    </div>
+  </div>
+  <p class="note">교육용 간이 모델입니다. 궤도는 고도 500 km 태양동기궤도(원궤도), 자세는 강체 회전 + PD 제어, 전력·온도는 단순화한 계산입니다. 시작 후 약 55분에 부산 지상국 위를 지나도록 궤도를 배치했습니다.</p>
+</aside>
+
+<section id="right" class="card">
+  <div><div id="met">T+00:00:00</div><div id="clock"></div></div>
+  <div id="h-mode" style="font-size:13px;font-weight:700"></div>
+  <dl>
+    <dt>위치</dt><dd id="h-pos"></dd>
+    <dt>태양</dt><dd id="h-sun"></dd>
+    <dt>배터리</dt><dd id="h-soc"></dd>
+  </dl>
+  <div class="bar"><div id="bar-soc"></div></div>
+  <dl>
+    <dt>발전</dt><dd id="h-gen" style="color:#ffd166"></dd>
+    <dt>소비</dt><dd id="h-use" style="color:#ff9f9f"></dd>
+    <dt>각속도</dt><dd id="h-rate"></dd>
+    <dt>지향 오차</dt><dd id="h-err"></dd>
+    <dt>휠 X/Y/Z rpm</dt><dd id="h-rw"></dd>
+    <dt>외판/배터리</dt><dd id="h-temp"></dd>
+    <dt>안테나</dt><dd id="h-ant"></dd>
+    <dt>부산 지상국</dt><dd id="h-gs"></dd>
+    <dt>촬영</dt><dd id="h-img"></dd>
+    <dt>다운링크</dt><dd id="h-dl"></dd>
+  </dl>
+  <canvas id="chart" width="560" height="240"></canvas>
+  <div class="legend"><span><i style="background:#6dffa8"></i>배터리 %</span><span><i style="background:#ffd166"></i>발전 W</span><span><i style="background:#ff7b7b"></i>소비 W</span></div>
+</section>
+<div id="minilabel">궤도 미니맵 · <span style="color:#ff5d73">● 위성</span> <span style="color:#ffd166">● 부산 지상국</span></div>
+
+<section id="partcard" class="card hidden">
+  <div class="top"><div><div id="p-sys"></div><h3 id="p-name"></h3></div><button id="p-close">✕</button></div>
+  <p id="p-desc"></p>
+</section>
+
+<div id="log" class="card"></div>
+
+<div id="bottom" class="card">
+  <button id="play">⏸</button>
+  <button data-speed="1">1×</button>
+  <button data-speed="10">10×</button>
+  <button data-speed="60">60×</button>
+  <button data-speed="300">300×</button>
+  <button data-speed="1200">1200×</button>
+  <button id="skip">⏭ 빨리 감기</button>
+  <button id="reset">↺ 처음부터</button>
+</div>
+<div class="credit">PUMPKIN IDEA FACTORY MAKERSPACE · 위성연구와 방향 교구</div>
+
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

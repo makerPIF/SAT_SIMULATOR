@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>큐브위성 크기별 구성 비교 3D</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: rgba(10,16,30,0.86); --line: rgba(140,170,220,0.18); --tx: #e6edf7; --mut: #8ea0bb; --acc: #ffd166; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0a1022; color: var(--tx); font-family: 'Noto Sans KR', system-ui, sans-serif; overflow: hidden; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; }
+  .lbl { position: absolute; left: 0; top: 0; font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 18px; color: var(--acc); text-shadow: 0 0 6px #000; white-space: nowrap; }
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); }
+  #left { position: fixed; top: 12px; left: 12px; width: 300px; padding: 14px; display: flex; flex-direction: column; gap: 12px; max-height: calc(100% - 24px); overflow-y: auto; }
+  #left.collapsed > :not(header) { display: none; }
+  header { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  h1 { font-size: 16px; margin: 0; } h1 small { display: block; font-size: 11px; color: var(--mut); font-weight: 400; margin-top: 2px; }
+  h2 { font-size: 11px; letter-spacing: .08em; color: var(--mut); margin: 0 0 6px; font-weight: 500; }
+  button { font: inherit; font-size: 13px; color: var(--tx); background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.13); }
+  button.on { background: var(--acc); color: #1a1a1a; border-color: var(--acc); font-weight: 700; }
+  #sizes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  #sizes button { font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+  #sizes button:last-child { grid-column: span 3; font-family: inherit; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 12.5px; }
+  .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 12px; color: #c5d1e3; }
+  #legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .note { font-size: 11px; color: var(--mut); line-height: 1.55; margin: 0; }
+  #spec { position: fixed; top: 12px; right: 12px; width: 340px; padding: 16px; max-height: calc(100% - 24px); overflow-y: auto; }
+  .big { font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 600; color: var(--acc); margin-bottom: 10px; }
+  .big span { font-family: 'Noto Sans KR', sans-serif; font-size: 14px; color: var(--tx); font-weight: 700; margin-left: 6px; }
+  dl { display: grid; grid-template-columns: 82px 1fr; gap: 6px 10px; margin: 0; font-size: 12.5px; line-height: 1.5; }
+  dt { color: var(--mut); } dd { margin: 0; }
+  .vol { margin-top: 12px; }
+  .vbar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; }
+  .vbar i { display: block; height: 100%; }
+  .vcap { font-size: 11px; color: var(--mut); margin-top: 4px; }
+  .crow { margin-bottom: 12px; } .crow b { display: block; font-size: 12.5px; margin-bottom: 4px; }
+  .cbar { display: grid; grid-template-columns: 38px 1fr 64px; align-items: center; gap: 6px; font-size: 11.5px; margin: 2px 0; }
+  .cbar span { font-family: 'JetBrains Mono', monospace; color: var(--mut); }
+  .cbar i { display: block; height: 10px; border-radius: 3px; }
+  .cbar em { font-style: normal; font-family: 'JetBrains Mono', monospace; color: #c5d1e3; text-align: right; }
+  #partcard { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(520px, calc(100% - 700px)); min-width: 300px; padding: 14px; }
+  #partcard .top { display: flex; justify-content: space-between; gap: 8px; }
+  #pc-sys { font-size: 11px; color: var(--acc); font-family: 'JetBrains Mono', monospace; }
+  #pc-name { margin: 2px 0 0; font-size: 16px; }
+  #pc-desc { margin: 8px 0 0; font-size: 13px; line-height: 1.6; color: #c5d1e3; }
+  .hidden { display: none !important; }
+  .credit { position: fixed; left: 50%; transform: translateX(-50%); top: 14px; font-size: 10px; color: rgba(142,160,187,0.55); letter-spacing: .05em; }
+  @media (max-width: 900px) { #spec { top: auto; bottom: 12px; max-height: 40%; width: calc(100% - 24px); } #left { max-height: 48%; width: calc(100% - 24px); } #partcard { width: calc(100% - 24px); bottom: auto; top: 50%; } .credit { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+<aside id="left" class="card">
+  <header>
+    <h1>큐브위성 크기별 구성 비교<small>1U · 2U · 3U · 6U · 12U · 16U 실제 비율 3D</small></h1>
+    <button id="panel-toggle" title="패널 접기">☰</button>
+  </header>
+  <div><h2>크기 선택</h2><div id="sizes"></div></div>
+  <div>
+    <h2>보기</h2>
+    <div class="toggles">
+      <label><input type="checkbox" id="t-wing">날개 펼치기</label>
+      <label><input type="checkbox" id="t-explode">분해 보기</label>
+      <label><input type="checkbox" id="t-xray">외판 투명</label>
+      <label><input type="checkbox" id="t-grid">1U 격자</label>
+      <label><input type="checkbox" id="t-spin" checked>자동 회전</label>
+    </div>
+  </div>
+  <div><h2>내부 모듈 색</h2><div id="legend"></div></div>
+  <p class="note">부품·모듈을 클릭하면 설명이 나옵니다. 「전체 비교」에서는 6종을 실제 크기 비율로 나란히 세우고, 위성을 클릭하면 그 크기로 들어갑니다.</p>
+  <p class="note">크기·질량 한계는 큐브위성 규격(CDS)과 사출관 기준의 대표값입니다(16U는 사출관 제조사 규격). 내부 배치·발전량·통신 속도는 크기별 특징을 보여 주기 위한 <b>교육용 예시 구성</b>이며, 실제 위성마다 다릅니다.</p>
+</aside>
+<section id="spec" class="card"></section>
+<section id="partcard" class="card hidden">
+  <div class="top"><div><div id="pc-sys"></div><h3 id="pc-name"></h3></div><button id="pc-close">✕</button></div>
+  <p id="pc-desc"></p>
+</section>
+<div class="credit">PUMPKIN IDEA FACTORY MAKERSPACE · 위성연구와 방향 교구</div>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>누리호 1~5차 탑재 위성 · 사출 3D 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: rgba(9,14,28,0.86); --line: rgba(140,170,220,0.18); --tx: #e6edf7; --mut: #8ea0bb; --acc: #ffb347; --good: #69db7c; --bad: #ff8787; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #02040c; color: var(--tx); font-family: 'Noto Sans KR', system-ui, sans-serif; overflow: hidden; font-size: 13px; }
+  #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .lbl { position: absolute; left: 0; top: 0; font-size: 11px; color: #dfe7f3; background: rgba(5,10,22,0.7); border: 1px solid rgba(140,170,220,0.25); border-radius: 5px; padding: 1px 6px; white-space: nowrap; display: none; }
+  .lbl.main { font-size: 13px; font-weight: 700; color: var(--acc); }
+  .lbl.sel { border-color: var(--acc); color: #fff; }
+  .lbl.failnow { color: var(--bad); border-color: var(--bad); }
+  .card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); }
+  #top { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); padding: 8px; display: flex; gap: 6px; }
+  #tabs { display: flex; gap: 6px; }
+  #tabs button { display: flex; flex-direction: column; align-items: center; min-width: 74px; font-weight: 700; }
+  #tabs small { font-weight: 400; font-size: 10px; color: var(--mut); font-family: 'JetBrains Mono', monospace; }
+  #tabs button.on small { color: #3a2400; }
+  button { font: inherit; color: var(--tx); background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,0.13); }
+  button.on, button.primary { background: var(--acc); color: #1d1200; border-color: var(--acc); }
+  #left { position: fixed; top: 12px; left: 12px; width: 330px; max-height: calc(100% - 24px); overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  #left.collapsed > :not(header) { display: none; }
+  header { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  h1 { font-size: 15px; margin: 0; } h1 small { display: block; font-size: 11px; color: var(--mut); font-weight: 400; margin-top: 2px; }
+  h2 { font-size: 11px; letter-spacing: .08em; color: var(--mut); margin: 0 0 6px; font-weight: 500; }
+  .mt { font-size: 22px; font-weight: 900; }
+  .md { font-family: 'JetBrains Mono', monospace; color: var(--mut); font-size: 12px; }
+  .res { display: inline-block; margin: 8px 0 4px; padding: 2px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+  .res.good { background: rgba(105,219,124,0.15); color: var(--good); } .res.bad { background: rgba(255,135,135,0.15); color: var(--bad); }
+  #info p { margin: 6px 0; line-height: 1.6; color: #c5d1e3; }
+  .cnt { font-size: 12px; color: var(--acc); }
+  #payloads { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+  #payloads li { padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); cursor: pointer; background: rgba(255,255,255,0.02); }
+  #payloads li:hover { background: rgba(255,255,255,0.06); } #payloads li.on { border-color: var(--acc); }
+  #payloads li.fail b { color: var(--bad); }
+  .tag { font-size: 10px; color: var(--mut); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-family: 'JetBrains Mono', monospace; }
+  .tag.bad { color: var(--bad); border-color: var(--bad); }
+  .sub { font-size: 11.5px; color: var(--mut); line-height: 1.5; margin-top: 2px; }
+  #right { position: fixed; top: 12px; right: 12px; width: 300px; padding: 14px; max-height: calc(100% - 120px); overflow-y: auto; }
+  #seq { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+  #seq li { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; padding: 6px 8px; border-radius: 7px; border-left: 3px solid #2b3a5c; cursor: pointer; color: var(--mut); }
+  #seq li .n { font-family: 'JetBrains Mono', monospace; }
+  #seq li .r { grid-column: 2; font-size: 11px; font-family: 'JetBrains Mono', monospace; color: var(--mut); }
+  #seq li.done { border-left-color: var(--good); color: #c5d1e3; }
+  #seq li.now { border-left-color: var(--acc); background: rgba(255,179,71,0.12); color: #fff; }
+  #banner { position: fixed; top: 84px; left: 50%; transform: translateX(-50%); padding: 8px 18px; border-radius: 10px; background: rgba(9,14,28,0.8); border: 1px solid var(--line); text-align: center; display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
+  #banner b { font-size: 17px; } #banner span { font-size: 12px; color: var(--mut); font-family: 'JetBrains Mono', monospace; }
+  #banner.bad b { color: var(--bad); }
+  #bottom { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); padding: 10px 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; width: min(820px, calc(100% - 700px)); min-width: 420px; }
+  #scrub { flex: 1; min-width: 160px; accent-color: var(--acc); }
+  #tlabel { font-family: 'JetBrains Mono', monospace; color: var(--mut); font-size: 12px; width: 70px; text-align: right; }
+  .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 12px; }
+  .toggles label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  .note { font-size: 10.5px; color: var(--mut); line-height: 1.55; margin: 0; }
+  .credit { position: fixed; right: 16px; bottom: 16px; font-size: 10px; color: rgba(142,160,187,0.55); letter-spacing: .05em; }
+  @media (max-width: 1200px) { #left { width: 280px; } #right { width: 250px; } #bottom { width: calc(100% - 24px); min-width: 0; } .credit { display: none; } #top { top: auto; bottom: 74px; } #banner { top: 12px; } }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="labels"></div>
+
+<div id="top" class="card"><div id="tabs"></div></div>
+<div id="banner"></div>
+
+<aside id="left" class="card">
+  <header>
+    <h1>누리호 탑재 위성 · 사출 3D<small>1차~5차 탑재 배치와 분리 순서</small></h1>
+    <button id="panel-toggle" title="패널 접기">☰</button>
+  </header>
+  <div id="info"></div>
+  <div>
+    <h2>보기</h2>
+    <div class="toggles">
+      <label><input type="checkbox" id="t-fairing" checked>페어링 표시</label>
+      <label><input type="checkbox" id="t-xray">페어링 투명</label>
+      <label><input type="checkbox" id="t-labels" checked>이름표</label>
+      <label><input type="checkbox" id="t-follow">선택 위성 따라가기</label>
+    </div>
+  </div>
+  <div><h2>탑재 위성 (누르면 확대)</h2><ul id="payloads"></ul></div>
+  <p class="note">위성 목록·사출 순서·결과는 우주항공청·항우연 발표와 언론 보도를 따랐습니다. 위성 크기와 3단 위 배치(사출관 위치·방향), 시간 간격은 이해를 돕기 위한 <b>단순화 표현</b>이며 실제 설계도와 다릅니다. 3차 큐브위성 사출 순서와 5차 일부 위성 명칭은 공개 자료가 부족해 단순화했습니다.</p>
+</aside>
+
+<aside id="right" class="card">
+  <h2>분리·사출 순서 (누르면 그 장면으로)</h2>
+  <ol id="seq"></ol>
+  <p class="note" style="margin-top:10px">큐브위성은 사출관(디플로이어) 안에 들어 있다가, 문이 열리면 안쪽 스프링이 위성을 밀어낸다. 문이 열리지 않으면 위성은 3단에 남는다(3차 도요샛 3호, 5차 PERSAT-02).</p>
+</aside>
+
+<div id="bottom" class="card">
+  <button id="play" class="primary">▶ 발사 시퀀스 재생</button>
+  <button id="restart">↺ 처음부터</button>
+  <input type="range" id="scrub" min="0" max="10" step="0.01" value="0">
+  <span id="tlabel"></span>
+  <button data-speed="0.5">0.5×</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button>
+</div>
+<div class="credit">PUMPKIN IDEA FACTORY MAKERSPACE · 위성연구와 방향 교구</div>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대한민국 위성 GCS 시뮬레이터</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #070d1c; --panel: #0d1630; --line: rgba(140,170,220,0.16); --tx: #e6edf7; --mut: #8ea0bb; --acc: #ffd43b; --good: #69db7c; --warn: #ffa8a8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--tx); font-family: 'Noto Sans KR', system-ui, sans-serif; font-size: 13px; overflow: hidden; }
+  .app { display: grid; grid-template-columns: 290px 1fr 360px; grid-template-rows: 52px 1fr 170px; height: 100vh; gap: 8px; padding: 8px; }
+  header { grid-column: 1 / 4; display: flex; align-items: center; gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; }
+  header h1 { font-size: 15px; margin: 0; white-space: nowrap; }
+  header h1 span { color: var(--acc); font-family: 'JetBrains Mono', monospace; margin-right: 6px; }
+  .clock { font-family: 'JetBrains Mono', monospace; display: flex; flex-direction: column; line-height: 1.2; }
+  #clock { font-size: 14px; font-weight: 600; } #utc, #offset { font-size: 11px; color: var(--mut); }
+  .ctrl { display: flex; gap: 4px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+  button, select { font: inherit; font-size: 12px; color: var(--tx); background: rgba(255,255,255,0.06); border: 1px solid var(--line); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+  select { background: #101b3a; }
+  button:hover { background: rgba(255,255,255,0.13); }
+  button.on, button.primary { background: var(--acc); color: #1a1a1a; border-color: var(--acc); font-weight: 700; }
+  .col { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  #left { grid-row: 2 / 4; }
+  #right { grid-column: 3; grid-row: 2 / 4; }
+  #mapwrap { grid-column: 2; grid-row: 2; background: #050a16; border: 1px solid var(--line); border-radius: 10px; position: relative; overflow: hidden; min-height: 0; }
+  #map { display: block; cursor: crosshair; }
+  .maptools { position: absolute; left: 10px; top: 8px; display: flex; gap: 10px; font-size: 11.5px; color: var(--mut); background: rgba(5,10,22,0.75); padding: 4px 8px; border-radius: 6px; }
+  .maptools label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+  .maplegend { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: var(--mut); background: rgba(5,10,22,0.75); padding: 4px 8px; border-radius: 6px; }
+  #logbox { grid-column: 2; grid-row: 3; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.65; }
+  #log div span { color: var(--mut); margin-right: 6px; }
+  #log .good { color: var(--good); } #log .warn { color: var(--warn); }
+  h2 { font-size: 11px; letter-spacing: .08em; color: var(--mut); margin: 0 0 6px; font-weight: 500; }
+  #satlist { list-style: none; margin: 0; padding: 0; }
+  #satlist li { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+  #satlist li:hover { background: rgba(255,255,255,0.06); } #satlist li.on { background: rgba(255,212,59,0.14); }
+  #satlist .nm { flex: 1; } #satlist .st { display: flex; gap: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .badge { font-size: 10px; background: var(--good); color: #0b2a12; border-radius: 4px; padding: 0 5px; font-weight: 700; }
+  .badge2 { font-size: 10px; background: #ffa94d; color: #2a1600; border-radius: 4px; padding: 0 5px; font-weight: 700; }
+  .selname { font-size: 16px; font-weight: 700; }
+  .sub { font-size: 11.5px; color: var(--mut); }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 6px 0 0; }
+  dt { color: var(--mut); } dd { margin: 0; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .good { color: var(--good); } .warn { color: var(--warn); } .acc { color: var(--acc); }
+  .src { font-size: 10.5px; color: var(--mut); margin-top: 6px; }
+  table { width: 100%; border-collapse: collapse; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+  th { text-align: left; color: var(--mut); font-weight: 400; border-bottom: 1px solid var(--line); padding: 3px 2px; }
+  td { padding: 3px 2px; border-bottom: 1px solid rgba(140,170,220,0.06); }
+  .tabs { display: flex; gap: 4px; }
+  .tabs button { flex: 1; }
+  .hidden { display: none !important; }
+  .cmd { display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .cmd select { width: 100%; }
+  #tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  #tasks li { background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+  .pbar { height: 5px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; } .pbar i { display: block; height: 100%; background: var(--acc); }
+  #gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #gallery figure { margin: 0; cursor: pointer; background: rgba(255,255,255,0.03); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  #gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
+  #gallery figcaption { font-size: 11px; padding: 5px 6px; color: #c5d1e3; line-height: 1.4; }
+  #tm-chart { width: 100%; height: 150px; background: rgba(0,0,0,0.25); border-radius: 6px; }
+  .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; max-width: min(980px, calc(100% - 24px)); max-height: calc(100% - 24px); overflow: auto; display: flex; gap: 16px; }
+  #v-img { width: min(560px, 60vw); aspect-ratio: 1; image-rendering: auto; border-radius: 8px; background: #000; }
+  .vside { width: 320px; display: flex; flex-direction: column; gap: 8px; }
+  .vside h3 { margin: 0; font-size: 15px; }
+  .stamp { font-size: 11px; color: var(--warn); }
+  #tle-text { width: 100%; height: 180px; font-family: 'JetBrains Mono', monospace; font-size: 11px; background: #050a16; color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .tlebox { flex-direction: column; width: 600px; }
+  .tlebox a { color: #74c0fc; }
+  .credit { font-size: 10px; color: rgba(142,160,187,0.6); letter-spacing: .05em; }
+  @media (max-width: 1100px) { .app { grid-template-columns: 1fr; grid-template-rows: auto 50vh auto auto auto; overflow-y: auto; height: auto; } html, body { overflow: auto; } header, #left, #right, #mapwrap, #logbox { grid-column: 1; grid-row: auto; } header { flex-wrap: wrap; padding: 8px; } #logbox { height: 160px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1><span>GCS</span>대한민국 위성 지상관제 시뮬레이터</h1>
+    <div class="clock"><div id="clock"></div><div><span id="utc"></span> · <span id="offset"></span></div></div>
+    <div class="ctrl">
+      <select id="station" title="기준 지상국"></select>
+      <button id="play">⏸</button>
+      <button data-speed="1">1×</button><button data-speed="30">30×</button><button data-speed="120">120×</button><button data-speed="600">600×</button>
+      <button id="skip">⏭ 다음 교신</button>
+      <button id="now">지금으로</button>
+      <button id="tle-open">📡 TLE</button>
+    </div>
+  </header>
+
+  <aside id="left" class="col">
+    <div><h2>위성 (체크 = 지도 표시)</h2><ul id="satlist"></ul></div>
+    <div id="selinfo"></div>
+    <div><h2>통과 예측 · 기준 지상국 (KST)</h2>
+      <table><thead><tr><th>AOS</th><th>LOS</th><th>길이</th><th>최대</th></tr></thead><tbody id="passes"></tbody></table>
+    </div>
+    <p class="sub">AOS = 위성이 지평선 위 5°로 떠올라 교신 시작, LOS = 교신 종료.</p>
+  </aside>
+
+  <div id="mapwrap">
+    <canvas id="map"></canvas>
+    <div class="maptools"><label><input type="checkbox" id="t-tracks">모든 궤적</label><label><input type="checkbox" id="t-names">모든 이름</label><span>지도 클릭 = 촬영 지점 선택</span></div>
+    <div class="maplegend">▲ 지상국 · 점선 원 = 교신 가능 범위 · 초록 고리 = 교신 중 · 어두운 면 = 밤 · ● 노랑 = 태양 직하점</div>
+  </div>
+
+  <div id="logbox"><div id="log"></div></div>
+
+  <aside id="right" class="col">
+    <div class="tabs"><button class="on" data-tab="tab-cmd">명령</button><button data-tab="tab-tm">텔레메트리</button><button data-tab="tab-data">수신 데이터<span id="tab-data-count"></span></button></div>
+    <section id="tab-cmd" class="tab" style="display:flex;flex-direction:column;gap:12px">
+      <div class="cmd">
+        <b id="cmdlabel"></b>
+        <div id="targetrow"><select id="target"></select><div id="targetinfo" class="sub" style="margin-top:4px"></div></div>
+        <button id="cmd-add" class="primary">명령 생성 → 업링크 대기열</button>
+        <label class="sub" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="instant">실습 모드: 교신 없이 바로 업링크</label>
+      </div>
+      <p class="sub">실제 운용 순서: ① 명령 생성 → ② 교신 때 업링크 → ③ 예정 시각에 위성이 촬영해 저장 → ④ 다음 교신 때 다운링크 → ⑤ 수신 데이터 탭에서 확인. 광학은 햇빛이 있어야 하고, SAR은 밤·구름에도 찍는다.</p>
+      <div><h2>명령 목록</h2><ul id="tasks"></ul></div>
+    </section>
+    <section id="tab-tm" class="tab hidden" style="display:flex;flex-direction:column;gap:10px">
+      <div id="tm-status"></div>
+      <canvas id="tm-chart" width="680" height="300"></canvas>
+      <dl id="tm-table"></dl>
+      <p class="sub">텔레메트리 = 위성이 보내는 상태 정보. 교신 중에만 10초마다 새 패킷이 들어온다. 값은 교육용 모의 데이터입니다.</p>
+    </section>
+    <section id="tab-data" class="tab hidden" style="display:flex;flex-direction:column;gap:10px">
+      <div id="gallery"></div>
+      <p class="sub">수신 영상은 지도 데이터와 잡음으로 만든 <b>모의 영상</b>입니다(실제 위성 사진 아님). 해안선 모양과 낮·밤, 구름, 센서 종류의 차이를 보여 줍니다.</p>
+    </section>
+    <div class="credit">PUMPKIN IDEA FACTORY MAKERSPACE · 위성연구와 방향 교구</div>
+  </aside>
+</div>
+
+<div id="viewer" class="modal hidden">
+  <div class="box">
+    <img id="v-img" alt="수신 영상">
+    <div class="vside">
+      <h3 id="v-title"></h3>
+      <div class="stamp">모의 영상 · 교육용</div>
+      <dl id="v-meta"></dl>
+      <button id="v-close">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="tle-dlg" class="modal hidden">
+  <div class="box tlebox">
+    <h3 style="margin:0">실제 궤도(TLE) 불러오기</h3>
+    <p class="sub">기본 위치는 공개 고도·경사각 기반 근사값입니다. 아래 링크의 텍스트를 복사해 붙여넣으면 SGP4로 실제 현재 위치를 계산합니다. 이름에 KOMPSAT-3A, KOMPSAT-5, CAS500-1, GEO-KOMPSAT-2A/2B가 들어 있으면 해당 위성을 실제 궤도로 바꿉니다.</p>
+    <p class="sub"><a href="https://celestrak.org/NORAD/elements/gp.php?NAME=KOMPSAT&FORMAT=tle" target="_blank" rel="noopener">KOMPSAT(아리랑·천리안)</a> · <a href="https://celestrak.org/NORAD/elements/gp.php?NAME=CAS500&FORMAT=tle" target="_blank" rel="noopener">CAS500(차세대중형위성)</a> · <a href="https://celestrak.org/NORAD/elements/" target="_blank" rel="noopener">CelesTrak 전체</a></p>
+    <textarea id="tle-text" placeholder="KOMPSAT-3A&#10;1 40536U ...&#10;2 40536 ..."></textarea>
+    <div style="display:flex;gap:8px;align-items:center"><button id="tle-add" class="primary">적용</button><button id="tle-cancel">닫기</button><span id="tle-msg" class="sub"></span></div>
+  </div>
+</div>
+<script>/*__BUNDLE__*/</script>
+</body>
+</html>
